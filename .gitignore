@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# Specific files
+*.tar.gz
+sample_*.txt
+*.out
+
+# PA1 specific
+cipher
