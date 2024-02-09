@@ -15,3 +15,11 @@ package:
 
 clean:
 	rm -f $(TARGET) $(PACKAGE)
+
+block:
+	./$(TARGET) B sample.txt sample_BE.txt key.txt E
+	./$(TARGET) B sample_BE.txt sample_BD.txt key.txt D
+
+stream:
+	./$(TARGET) S sample.txt sample_SE.txt key.txt E
+	./$(TARGET) S sample_SE.txt sample_SD.txt key.txt D

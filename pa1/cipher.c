@@ -1,14 +1,25 @@
 // Aidan Michalos
-
-#define _POSIX_C_SOURCE 200809L
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-void block_cipher(FILE *in, FILE *out, FILE *key, char mode);
+#define BLOCK_SIZE 16
+#define KEY_SIZE 16
+#define padChar 0x81
+
+// Block Cipher functions
+void xor(FILE *in, FILE *out, FILE *key);
+void byteswap(FILE *in, FILE *out);
+void pad(FILE *in, FILE *out);
+void removePad(FILE *in, FILE *out);
+void blockEncrypt(FILE *in, FILE *out, FILE *key);
+void blockDecrypt(FILE *in, FILE *out, FILE *key);
+
+// Stream Cipher function
 void stream_cipher(FILE *in, FILE *out, FILE *key, char mode);
+
+// Function to open files
 FILE *open_file(char *filename, char *file_option, int argv_index);
 
 int main(int argc, char *argv[])
@@ -49,7 +60,14 @@ int main(int argc, char *argv[])
 
     if (cipher_type == 'B')
     {
-        block_cipher(input_file, output_file, key_file, mode);
+        if(mode == 'E')
+        {
+            blockEncrypt(input_file, output_file, key_file);
+        }
+        else // mode == 'D'
+        {
+            blockDecrypt(input_file, output_file, key_file);
+        }
     }
     else
     {
@@ -92,10 +110,6 @@ FILE *open_file(char *filename, char *file_option, int argv_index)
                 key_buffer[key_size++] = c;
             }
         }
-
-        // This actually does not work lol
-        // key_buffer[key_size - 1] = '\0';  // Add null character at the end of the buffer
-
         fclose(file);
 
         // Reopen the key file in write mode and write the cleaned key
@@ -121,99 +135,88 @@ FILE *open_file(char *filename, char *file_option, int argv_index)
     return file;
 }
 
-// Function to perform block cipher encryption/decryption
-void block_cipher(FILE *in, FILE *out, FILE *key, char mode)
-{
+//Functions to perform block cipher encryption/decryption
 
-    // Read the key into a buffer
-    char key_buffer[16];
+// Function to XOR Blocks
+void xor(FILE *in, FILE *out, FILE *key){
+    char buffer[BLOCK_SIZE];
+    char key_buffer[KEY_SIZE];
+    size_t bytes;
     size_t key_size = fread(key_buffer, 1, 16, key);
-
-    // Check key size for block cipher
-    if (key_size != 16)
+    while ((bytes = fread(buffer, 1, 16, in)) > 0)
     {
-        printf("Error: Key size for block cipher must be 16 bytes.\n");
-        exit(1);
+        for (int i = 0; i < 16; i++)
+        {
+            buffer[i] ^= key_buffer[i];
+        }
+        fwrite(buffer, 1, 16, out);
     }
-
-    // Read the input file into a buffer
-    char buffer[16];
+}
+// Function to swap bytes
+void byteswap(FILE *in, FILE *out){
+    char buffer[BLOCK_SIZE];
+    //char key_buffer[KEY_SIZE];
+    size_t bytes;
+    //size_t key_size = fread(key_buffer, 1, 16, key);
+    while ((bytes = fread(buffer, 1, 16, in)) > 0)
+    {
+        for (int i = 0; i < 16; i += 2)
+        {
+            char temp = buffer[i];
+            buffer[i] = buffer[i + 1];
+            buffer[i + 1] = temp;
+        }
+        fwrite(buffer, 1, 16, out);
+    }
+}
+// Function to pad the last block if necessary
+void pad(FILE *in, FILE *out){
+    char buffer[BLOCK_SIZE];
     size_t bytes;
     while ((bytes = fread(buffer, 1, 16, in)) > 0)
     {
-        // Pad the buffer with 0x81 if necessary
-        if (bytes < 16 && mode == 'E')
+        if (bytes < 16)
         {
-            memset(buffer + bytes, 0x81, 16 - bytes);
+            for (int i = bytes; i < 16; i++)
+            {
+                buffer[i] = padChar;
+            }
         }
-
-        if (mode == 'E')
+        fwrite(buffer, 1, 16, out);
+    }
+}
+void removePad(FILE *in, FILE *out){
+    char buffer[BLOCK_SIZE];
+    char pad = padChar;
+    size_t bytes;
+    while ((bytes = fread(buffer, 1, 16, in)) > 0)
+    {
+        if (buffer[15] == pad)
         {
-            // XOR the buffer with the key
-            for (int i = 0; i < 16; i++)
+            int i = 15;
+            while (buffer[i] == pad)
             {
-                buffer[i] ^= key_buffer[i];
+                i--;
             }
-
-            // Swap bytes according to the key
-            int start = 0, end = 15;
-            for (int i = 0; i < 16; i++)
-            {
-                if ((key_buffer[i] % 2) == 1)
-                {
-                    char temp = buffer[start];
-                    buffer[start] = buffer[end];
-                    buffer[end] = temp;
-                    end--;
-                }
-                start++;
-                if (start >= end)
-                {
-                    break;
-                }
-            }
+            fwrite(buffer, 1, i + 1, out);
         }
         else
-        { // mode == 'D'
-            // Swap bytes according to the key
-            int start = 0, end = 15;
-            for (int i = 0; i < 16; i++)
-            {
-                if ((key_buffer[i] % 2) == 1)
-                {
-                    char temp = buffer[start];
-                    buffer[start] = buffer[end];
-                    buffer[end] = temp;
-                    end--;
-                }
-                start++;
-                if (start >= end)
-                {
-                    break;
-                }
-            }
-
-            // XOR the buffer with the key
-            for (int i = 0; i < 16; i++)
-            {
-                buffer[i] ^= key_buffer[i];
-            }
-
-            // Check for padding and adjust bytes if necessary
-            for (int i = 15; i >= 0; i--)
-            {
-                if (buffer[i] == (char)0x81)
-                {
-                    bytes = i;
-                    break;
-                }
-            }
+        {
+            fwrite(buffer, 1, 16, out);
         }
-
-        // Write the result to the output file
-        fwrite(buffer, 1, bytes, out);
     }
-
+}
+// Block Cipher Encrypt
+void blockEncrypt(FILE *in, FILE *out, FILE *key){
+    xor(in, out, key);
+    byteswap(in, out);
+    pad(in, out);
+}
+// Block Cipher Decrypt
+void blockDecrypt(FILE *in, FILE *out, FILE *key){
+    removePad(in, out);
+    byteswap(in, out);
+    xor(in, out, key);
 }
 
 // Function to perform stream cipher encryption/decryption & the char mode is unused but still included for consistency
