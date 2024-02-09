@@ -2,4 +2,5 @@ This is some test text for the cipher program. It should be able to handle punct
 It should also be able to handle capital LETTERS!
 Also some symbols: !@#$%^&*()_+{}|:"<>?[]\;',./
 
-Tucker Laurence12345 23 1234567891011
+Tucker 23 1234567891011645654 This is hopefully not 16 bytes long. 123456789101112
+"""

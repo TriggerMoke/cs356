@@ -1,7 +1,7 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -std=c11
+CC = g++
+CFLAGS = -Wall -Wextra -std=c++11
 TARGET = cipher
-SRC = cipher.c
+SRC = cipher.cpp
 PACKAGE = PA1_Aidan_Michalos.tar.gz
 FILES_TO_PACKAGE = $(SRC) Makefile README.md key.txt sample.txt
 
