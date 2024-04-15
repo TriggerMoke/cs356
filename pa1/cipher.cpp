@@ -8,7 +8,7 @@
 const int BLOCK_SIZE = 16;
 const char PADDING_CHAR = 0x81;
 
-std::ifstream openInputFile(const std::string& filename);
+std::ifstream openInputFile(const std::string& filename, const std::string& fileType);
 std::ofstream openOutputFile(const std::string& filename);
 
 std::vector<char> readKey(std::ifstream& keyFile);
@@ -36,18 +36,18 @@ int main(int argc, char* argv[]) {
 
     // Modes
     if (cipherType != 'B' && cipherType != 'S') {
-        std::cerr << "Invalid cipher type. Must be 'B' for block or 'S' for stream.\n";
+        std::cerr << "Invalid Function Type\n";
         return 1;
     }
     if (mode != 'E' && mode != 'D') {
-        std::cerr << "Invalid mode. Must be 'E' for encryption or 'D' for decryption.\n";
+        std::cerr << "Invalid Mode Type\n";
         return 1;
     }
 
     try {
-        auto inputFile = openInputFile(argv[2]);
+        auto inputFile = openInputFile(argv[2], "Input");
         auto outputFile = openOutputFile(argv[3]);
-        auto keyFile = openInputFile(argv[4]);
+        auto keyFile = openInputFile(argv[4], "Key");
 
         if (cipherType == 'B') {
             blockCipher(inputFile, outputFile, keyFile, mode);
@@ -63,10 +63,13 @@ int main(int argc, char* argv[]) {
 }
 
 // File I/O helper functions
-std::ifstream openInputFile(const std::string& filename) {
+std::ifstream openInputFile(const std::string& filename, const std::string& fileType) {
     std::ifstream file(filename, std::ios::binary);
     if (!file) {
-        throw std::runtime_error("Cannot open input file: " + filename);
+        // Cant use throw in order to get exact '<TYPE> File Does Not Exist' error message
+        //throw std::runtime_error(fileType + " File Does Not Exist\n");
+        std::cout << fileType << " File Does Not Exist\n";
+        exit(1);
     }
     return file;
 }
