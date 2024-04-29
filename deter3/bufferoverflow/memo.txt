@@ -1,0 +1,41 @@
+1:
+While analyzing the webserver.c code, I noticed that the send_response function has a fixed buffer size of 1024 bytes.
+This means that if the request is larger than 1024 bytes, the buffer will overflow and the program will crash.
+
+Using the following GET request, we can trigger the buffer overflow:
+
+GET /Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp!Gorp! HTTP/1.1
+Host: toadbox.gorp
+
+Since that GET request is very long here is a command that will write the request into a file:
+
+echo -e "GET /$(perl -e 'print "Gorp!" x 195') HTTP/1.1\r\nHost: toadbox.gorp\r\n\r\n" > payload
+
+
+I fixed this issue by dynamically allocating memory for the buffer based on the size of the request.
+You then pass this buffer along with the data to a helper function i added called bufferAddChk which 
+will add the data to the buffer and check if the buffer is full. If the buffer is full, it will take
+the buffer size and multiply it by 2 and realloc the buffer to the new size, if for some reason the
+data is more than 2x the buffer size, it will realloc to the size of the data + 1. After patching the 
+code, send_response will no longer cause a seg fault when the request is larger than the buffer size.
+
+Here is my helper function defintion along with the changes to the send_response function:
+
+void bufferAddChk(char **buffer, int *buffer_size, const char *data)
+
+
+int bufsize = 1024;
+char *sendmessage = (char *)malloc(bufsize * sizeof(char));
+
+instead of using strcat(sendmessage, data), you use bufferAddChk(&sendmessage, &bufsize, data);
+
+2:
+This breach is a serious breach, while it doesnt allow for data to be stolen, it does allow an 
+attacker to crash the server by sending a large request. This could be used to perform a denial 
+of service attack on the server. It could also allow remote execution of code if the attacker
+can figure out how to manipulate the stack to their advantage. My suggested recovery plan is to
+implement the changes I made to the code and to also implement a check to see if the request is
+larger than a certain size, if it is, the server should return a 400 Bad Request response. This
+will prevent the server from crashing and allow the server to properly handle the request. It is
+enough to fix the flaw. With that said, there are some other fixed buffer lengths that have the
+potential to overflow, should dynamically allocate those aswell.

@@ -1,0 +1,15 @@
+I was able to identify a flaw in the memo.cgi/.pl setup that allowed for access to the /etc/shadow (a file of hashed user pwd)
+
+This flaw is mainly due to the use of memo.cgi running with SUID enabled, and the other part of the flaw is memo.pl allows a user
+to provide direct input and specify a path, see the simple exploit below:
+
+ATTACK_PATH="../../../../../../etc/shadow"
+elinks -dump "http://localhost/cgi-bin/memo.cgi?memo=${ATTACK_PATH}" > shadow
+
+Those two lines will dump the /etc/shadow file in memo format.
+
+To recover from this we should stop using memo.cgi entirely, and apply my patch to the memo.pl script.
+
+It is not sufficient to only check the start of the pathnames because, as you can see in the exploit, you can just use ../../../ and with
+a little trial and error you could effectively print out any file. This is a serious breach as, previously stated, any file is at risk to being viewed.
+

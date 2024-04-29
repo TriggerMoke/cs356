@@ -1,0 +1,217 @@
+--- memo.orig.pl	2024-04-28 03:16:24.880322619 +0000
++++ memo.pl	2024-04-29 03:05:27.836978129 +0000
+@@ -21,61 +21,80 @@
+ # AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE 
+ # DEFECTIVE, *AND IT WILL*, YOU ASSUME THE COST OF ALL NECESSARY 
+ # SERVICING, REPAIR OR CORRECTION.
+-	
++
++# Validate 'memo' parameter to prevent path traversal
++sub is_valid_memo {
++    my $memo = shift;
++
++    # Reject any path containing '..'
++    return 0 if $memo =~ m#\.\.#;
++
++    # Allow only valid memo paths (e.g., /home/user/memo/file)
++    return 0 unless $memo =~ m#^/home/[^/]+/memo/[^/]+$#;
++
++    return 1;  # Valid path
++}
++
+ my %labels; # global assoc. array (AA) of printable names for memos
+ 
+ # glob through the homedirs for an array of paths to memos sorted by date
+ # function list_memo_selector
+ # parameters: none
+ # output: fills global AA 'labels' with nice names for memos based on
+-# 	the pathname of the memo
++#       the pathname of the memo
+ 
+ sub list_memo_selector {
+-	
+-	# GET ALL THE USER MEMOS
+-	# the star '*' is a wildcard. This is a "glob" operator -- it finds
+-	# all the files in the 'memo' directory in any home directory located
+-	# in /home. E.g., it finds files in /home/foo/memo/ and /home/bar/memo
+-	# and stores them in a 0-indexed array (Perl arrays start with @).
+-	my @memos = </home/*/memo/*>; # all regular users
+-
+-	# GET ROOT'S MEMOS
+-	# root can also have memos in /home/root/. The next glob operator
+-	# "pushes" root's memos onto the @memos array. This script (memo.cgi)
+-	# needs SUID-root permissions to access files in /root/memo.
+-	push (@memos, </root/memo/*>); # special memos from root
+-
+-
+-	my $memo; 
+-	foreach $memo (@memos) {
+-		# iterate through all memos listed in @memos. Each time
+-		# through this for-like loop, the memo's path will be stored
+-		# in the variable '$memo'. The 'foreach' loop will end after
+-		# the last memo is processed.
+-
+-		# the following line is a "regular expression" which matches
+-		# the filename at the end of a path and stores the filename (only)
+-		# in the special variable "$1". E.g., if the path /foo/memo/i_quit
+-		# is in $memo, the string "i_quit" will be in $1 after the regular
+-		# expression.
+-		$memo =~ m#^.+/([^/]+)$#; # regex extract filename
+-		my $memoname = $1; # store the memoname part into $memoname
+-		$memoname =~ s/_/ /g; # turn memoname "i_quit" into "i quit"
+-		$labels{$memo} = $memoname; # assign pretty label name
+-		
+-		# now, %labels has an entry that looks like this:
+-		# $labels{'/foo/memo/i_quit'} pointing to the string "i quit"
+-	}
+-
+-	# print an HTML "drop down menu" (called a popup_menu) with the name
+-	# 'memo' using the values of @memos as the choices and the pretty 
+-	# names in %labels (matching the @memos) as the readable names
+-	print popup_menu(-name=>'memo',
+-									 -values=>\@memos,
+-								   -labels=>\%labels);
+ 
+-	# print a submit button
+-	print submit("Read memo");
++        # GET ALL THE USER MEMOS
++        # the star '*' is a wildcard. This is a "glob" operator -- it finds
++        # all the files in the 'memo' directory in any home directory located
++        # in /home. E.g., it finds files in /home/foo/memo/ and /home/bar/memo
++        # and stores them in a 0-indexed array (Perl arrays start with @).
++        # my @memos = </home/*/memo/*>; # all regular users
++        my @memos = </home/*/memo/*>;
++
++        # GET ROOT'S MEMOS
++        # root can also have memos in /home/root/. The next glob operator
++        # "pushes" root's memos onto the @memos array. This script (memo.cgi)
++        # needs SUID-root permissions to access files in /root/memo.
++        push(@memos, </root/memo/*>);
++
++
++        my %labels;
++        foreach my $memo (@memos) {
++                # iterate through all memos listed in @memos. Each time
++                # through this for-like loop, the memo's path will be stored
++                # in the variable '$memo'. The 'foreach' loop will end after
++                # the last memo is processed.
++
++                # the following line is a "regular expression" which matches
++                # the filename at the end of a path and stores the filename (only)
++                # in the special variable "$1". E.g., if the path /foo/memo/i_quit
++                # is in $memo, the string "i_quit" will be in $1 after the regular
++                # expression.
++                # $memo =~ m#^.+/([^/]+)$#; # regex extract filename
++                # my $memoname = $1; # store the memoname part into $memoname
++                # $memoname =~ s/_/ /g; # turn memoname "i_quit" into "i quit"
++                # $labels{$memo} = $memoname; # assign pretty label name
++            
++            $memo =~ m#^.+/([^/]+)$#;
++            my $memoname = $1;
++            $memoname =~ s/_/ /g;  # Convert underscores to spaces
++            $labels{$memo} = $memoname;  # Assign pretty label name
++
++                # now, %labels has an entry that looks like this:
++                # $labels{'/foo/memo/i_quit'} pointing to the string "i quit"
++        }
++
++        # print an HTML "drop down menu" (called a popup_menu) with the name
++        # 'memo' using the values of @memos as the choices and the pretty 
++        # names in %labels (matching the @memos) as the readable names
++        print popup_menu(-name=>'memo',
++                                                                         -values=>\@memos,
++                                                                   -labels=>\%labels);
++
++        # print a submit button
++        print submit("Read memo");
+ 
+ }
+ 
+@@ -91,45 +110,49 @@
+ print p("<form method='get' name='main'>\n");
+ 
+ if (!param('memo')) {
+-	# if no parameter named 'memo' was provided by the user, get a list
+-	# of all the memos on the system.
+-	list_memo_selector();
++        # if no parameter named 'memo' was provided by the user, get a list
++        # of all the memos on the system.
++        list_memo_selector();
+ } else {
+-	# else, there is a memo parameter from the user. Figure out who wrote
+-	# the memo by looking at the path, and print the memo out.
+-	list_memo_selector();
+-	my $memo = param('memo');
+-	my $author = "root";
+-	my @stat = stat $memo;
+-	my $date = localtime $stat[9];
+-	if ($memo =~ m#^/home/([^/]+)/.*$#) {
+-		$author = $1;
+-	}
+-	print "<hr>\n";
+-	print "<blockquote>";
+-	print '<table border=1><tr><td>';
+-	print "<center><b>$labels{$memo}</b></center>";
+-	print '</td></tr>';
+-	print "<tr><td>\n<p>";
+-	print "<b>Author:</b> $author<br />\n";
+-	print "<b>Subject:</b> $labels{$memo}<br />";
+-	print "<b>Date:</b> $date<br />\n";
+-	print "\n</p></td></tr>\n";
+-	print "<tr><td><p>&nbsp;</p>\n";
+-	print "<blockquote><p>\n";
+-	
+-	open (MEMO, $memo); # open the memo file
+-	
+-	my $line;
+-	foreach $line (<MEMO>) {
+-		# for every line in the memo, print it out
+-		$line =~ s#\n$#</p><p>#; # replace newline characters with HTML
+-		print "$line\n";
+-	}
+-	print "</p></blockquote>\n";
+-	print '<p>&nbsp;</p></td></tr></table>';
+-	print "</blockquote>";
+-	print "<hr>\n";
++        # Validate the 'memo' parameter
++        my $memo = param('memo');
++
++        if (!is_valid_memo($memo)) {
++            die "Invalid memo path";  # Reject invalid paths
++        }
++
++        my $author = "root";
++        if ($memo =~ m#^/home/([^/]+)/.*$#) {
++            $author = $1;
++        }
++
++
++        print "<hr>\n";
++        print "<blockquote>";
++        print '<table border=1><tr><td>';
++        print "<center><b>$labels{$memo}</b></center>";
++        print '</td></tr>';
++        print "<tr><td>\n<p>";
++        print "<b>Author:</b> $author<br />\n";
++        print "<b>Subject:</b> $labels{$memo}<br />";
++        print "<b>Date:</b> $date<br />\n";
++        print "\n</p></td></tr>\n";
++        print "<tr><td><p>&nbsp;</p>\n";
++        print "<blockquote><p>\n";
++
++        # Open the memo file only after validation
++        open(MEMO, $memo) or die "Could not open memo";
++
++        my $line;
++        foreach $line (<MEMO>) {
++                # for every line in the memo, print it out
++                $line =~ s#\n$#</p><p>#; # replace newline characters with HTML
++                print "$line\n";
++        }
++        print "</p></blockquote>\n";
++        print '<p>&nbsp;</p></td></tr></table>';
++        print "</blockquote>";
++        print "<hr>\n";
+ }
+ 
+ # print some boilerplate instructions and quit
